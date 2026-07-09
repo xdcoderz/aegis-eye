@@ -1,0 +1,11 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: aegis-gateway-hub
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:55432/aegis_eye}
+    username: ${DB_USER:aegis_user}
+    password: ${DB_PASSWORD:aegis_dev_password}
+    driver-class-name: org.postgresql.Driver

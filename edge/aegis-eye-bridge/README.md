@@ -29,6 +29,18 @@ cd .\edge\aegis-eye-bridge
 .\.venv\Scripts\python.exe -m src.prototype
 ```
 
+To post the generated record to a running gateway:
+
+```powershell
+$env:AEGIS_INGEST_URL='http://localhost:8080/api/evidence'
+$env:AEGIS_STREAM_ID='camera-demo-local'
+$env:AEGIS_SEQUENCE_NUMBER='1'
+.\.venv\Scripts\python.exe -m src.prototype
+Remove-Item Env:\AEGIS_INGEST_URL
+Remove-Item Env:\AEGIS_STREAM_ID
+Remove-Item Env:\AEGIS_SEQUENCE_NUMBER
+```
+
 ## Important
 
 The demo key is generated at runtime. It is not production key custody. Production needs hardware-backed key storage, rotation, and revocation.

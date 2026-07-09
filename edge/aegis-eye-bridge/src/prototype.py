@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
+from urllib import request
 from uuid import uuid4
 
 import cv2
@@ -36,12 +38,18 @@ def frame_hash(frame: np.ndarray) -> str:
     return sha256_hex(encoded.tobytes())
 
 
-def build_payload(redacted_frame_hash: str) -> dict:
+def build_payload(
+    redacted_frame_hash: str,
+    device_id: str,
+    stream_id: str,
+    sequence_number: int,
+    previous_payload_hash: str | None,
+) -> dict:
     return {
         "schemaVersion": "aegis.evidence.v1",
-        "deviceId": "edge-demo-001",
-        "streamId": "camera-demo-001",
-        "sequenceNumber": 1,
+        "deviceId": device_id,
+        "streamId": stream_id,
+        "sequenceNumber": sequence_number,
         "capturedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "redactionModel": {
             "name": "synthetic-face-redactor",
@@ -55,7 +63,7 @@ def build_payload(redacted_frame_hash: str) -> dict:
             "frameCount": 1,
             "redactedFrameHash": redacted_frame_hash,
         },
-        "previousPayloadHash": None,
+        "previousPayloadHash": previous_payload_hash,
         "detections": [
             {
                 "type": "face",
@@ -78,7 +86,14 @@ def main() -> None:
     redacted = redact_box(frame, **detection)
     redacted_hash = frame_hash(redacted)
 
-    payload = build_payload(redacted_hash)
+    previous_payload_hash = os.getenv("AEGIS_PREVIOUS_PAYLOAD_HASH")
+    payload = build_payload(
+        redacted_hash,
+        device_id=os.getenv("AEGIS_DEVICE_ID", "edge-demo-001"),
+        stream_id=os.getenv("AEGIS_STREAM_ID", "camera-demo-001"),
+        sequence_number=int(os.getenv("AEGIS_SEQUENCE_NUMBER", "1")),
+        previous_payload_hash=previous_payload_hash if previous_payload_hash else None,
+    )
     hash_hex = payload_hash(payload)
 
     private_key = generate_demo_private_key()
@@ -98,6 +113,19 @@ def main() -> None:
     }
 
     print(json.dumps(record, indent=2, sort_keys=True))
+
+    ingest_url = os.getenv("AEGIS_INGEST_URL")
+    if ingest_url:
+        body = json.dumps(record, sort_keys=True).encode("utf-8")
+        http_request = request.Request(
+            ingest_url,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(http_request, timeout=10) as response:
+            response_body = response.read().decode("utf-8")
+        print(response_body)
 
 
 if __name__ == "__main__":

@@ -15,6 +15,42 @@ sample video or frame
   -> dashboard result
 ```
 
+## Product Structure
+
+AegisEye should be built in layers, not all at once.
+
+### USP Proof
+
+The USP is the smallest proof that makes the project interesting:
+
+```text
+redacted evidence payload -> hash -> signature -> ledger -> tamper detection
+```
+
+This proves the project is more than a camera dashboard. It proves a trust property.
+
+### MVP
+
+The MVP turns the USP into something a reviewer can run:
+
+- edge prototype emits signed records,
+- gateway accepts and verifies records,
+- database stores the ledger,
+- verification endpoint finds broken records,
+- dashboard shows the result.
+
+### Complete Project
+
+The complete project expands the MVP into a realistic product:
+
+- multi-camera support,
+- registered device keys,
+- key rotation and revocation,
+- real video redaction pipeline,
+- dashboard workflows,
+- audit/export features,
+- external review readiness.
+
 ## Service Boundaries
 
 ### aegis-eye-bridge

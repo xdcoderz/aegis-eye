@@ -1,8 +1,28 @@
-# AegisEye V1 Demo Plan
+# AegisEye USP and MVP Demo Plan
 
-## Demo Objective
+## End Goal
 
-Show that AegisEye can create a redacted evidence payload, hash it, sign it, store it, and detect tampering.
+Build a system that can take privacy-redacted visual evidence from an edge device, prove it was signed by that device, store it in a ledger, and detect later tampering.
+
+## USP Objective
+
+Show the unique selling point first:
+
+```text
+redacted evidence -> canonical payload -> payload hash -> signature -> ledger -> tamper detection
+```
+
+This must work before adding product polish.
+
+## MVP Objective
+
+Turn the USP into a usable local demo:
+
+- one edge producer,
+- one ingestion API,
+- one PostgreSQL ledger,
+- one chain verification flow,
+- one minimal dashboard.
 
 ## Demo Story
 
@@ -17,14 +37,24 @@ Show that AegisEye can create a redacted evidence payload, hash it, sign it, sto
 
 ## Phase 1: Foundation
 
-Status: in progress
+Status: complete
 
 - Define evidence payload schema.
 - Define ledger database table.
 - Create local PostgreSQL Compose setup.
 - Create edge prototype for canonical payload, hash, and signature.
 
-## Phase 2: Edge Computer Vision
+## Phase 2: Ingestion MVP
+
+Status: complete
+
+- Create `POST /api/evidence`.
+- Recompute canonical payload hash.
+- Verify Ed25519 signature.
+- Persist accepted records to PostgreSQL.
+- Reject tampered or invalid records.
+
+## Phase 3: Edge Computer Vision
 
 - Read a sample video.
 - Detect faces with a simple OpenCV detector or ONNX model.
@@ -32,15 +62,9 @@ Status: in progress
 - Hash redacted frame output.
 - Emit one payload per frame batch.
 
-## Phase 3: Backend Ingestion
-
-- Create `POST /api/evidence`.
-- Validate payload schema.
-- Recompute payload hash.
-- Verify edge signature.
-- Persist record.
-
 ## Phase 4: Chain Verification
+
+Status: next
 
 - Create `POST /api/ledger/verify`.
 - Walk records by `(device_id, stream_id, sequence_number)`.
