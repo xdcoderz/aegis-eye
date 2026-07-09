@@ -1,0 +1,24 @@
+name: aegiseye
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aegiseye-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: aegis_eye
+      POSTGRES_USER: aegis_user
+      POSTGRES_PASSWORD: aegis_dev_password
+    ports:
+      - "55432:5432"
+    volumes:
+      - aegiseye-postgres-data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegis_user -d aegis_eye"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  aegiseye-postgres-data:

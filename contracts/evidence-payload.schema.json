@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aegiseye.local/contracts/evidence-payload.schema.json",
+  "title": "AegisEye Evidence Payload",
+  "description": "Canonical payload emitted by an edge device before hashing, signing, and ledger persistence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "deviceId",
+    "streamId",
+    "sequenceNumber",
+    "capturedAt",
+    "redactionModel",
+    "frameBatch",
+    "previousPayloadHash",
+    "detections"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "aegis.evidence.v1"
+    },
+    "deviceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-zA-Z0-9._:-]+$"
+    },
+    "streamId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[a-zA-Z0-9._:-]+$"
+    },
+    "sequenceNumber": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "capturedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "redactionModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "mode"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["synthetic-demo", "opencv-haar", "onnx"]
+        }
+      }
+    },
+    "frameBatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "batchId",
+        "startFrame",
+        "endFrame",
+        "frameCount",
+        "redactedFrameHash"
+      ],
+      "properties": {
+        "batchId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "startFrame": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "endFrame": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "frameCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "redactedFrameHash": {
+          "$ref": "#/$defs/sha256Hex"
+        }
+      }
+    },
+    "previousPayloadHash": {
+      "description": "Null only for the first record in a device/stream chain.",
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/sha256Hex"
+        }
+      ]
+    },
+    "detections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "confidence",
+          "redaction",
+          "box"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["face"]
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "redaction": {
+            "type": "string",
+            "enum": ["blur", "pixelate", "mask"]
+          },
+          "box": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["x", "y", "width", "height"],
+            "properties": {
+              "x": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "y": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "width": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256Hex": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
