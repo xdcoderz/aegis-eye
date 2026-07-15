@@ -2,187 +2,113 @@
 
 ## End Goal
 
-AegisEye Core should become a privacy-preserving, tamper-evident video evidence platform.
+Build an independently auditable, privacy-preserving video evidence platform. Sensitive regions are redacted near capture, every evidence payload is signed by a registered edge identity, records form a tamper-evident chain, and authorized reviewers can verify custody before using or exporting evidence.
 
-The final system should:
+## Scope Strategy
 
-- redact sensitive visual data near the camera,
-- create canonical evidence payloads,
-- hash and sign each payload,
-- store the payloads in an append-oriented ledger,
-- verify the chain of custody,
-- detect missing or modified records,
-- give operators a dashboard for evidence integrity.
+AegisEye is organized around increasingly strong claims:
 
-## Why We Are Building USP First
-
-The most important value of this project is not "camera monitoring." Many projects can show camera monitoring.
-
-The unique selling point is:
-
-> AegisEye can prove whether redacted visual evidence was changed after ingestion.
-
-That proof must exist before we build a polished dashboard, multi-camera support, or advanced AI.
+1. USP: prove that redacted computer-vision evidence can be cryptographically verified.
+2. Hackathon MVP: make that proof visible, repeatable, and understandable in a live demo.
+3. Pilot: test multiple real devices and realistic failure conditions.
+4. Product: add production identity, access, storage, deployment, and compliance controls.
 
 ## Phase 0: Foundation
 
-Goal:
+Status: complete
 
-Create the repo structure, shared contract, database schema, and local development environment.
+- Monorepo and service boundaries
+- Shared evidence JSON Schema
+- Dockerized PostgreSQL
+- Canonical JSON, SHA-256, and Ed25519 primitives
+- Initial threat model and architecture
 
-Deliverables:
+Exit criterion: the same payload produces the same hash and a valid signature can be distinguished from an invalid one.
 
-- monorepo structure,
-- evidence payload JSON Schema,
-- PostgreSQL Compose setup,
-- ledger table,
-- edge hash/sign prototype,
-- initial docs.
+## Phase 1: USP Ingestion Proof
 
-Status:
+Status: complete
 
-Complete.
+- Signed evidence ingestion endpoint
+- Server-side payload-hash recomputation
+- Ed25519 signature verification
+- Registered device and key-ID check
+- PostgreSQL ledger persistence
+- Duplicate sequence and payload rejection
 
-## Phase 1: USP Proof
+Exit criterion: valid evidence is stored; modified payloads and signatures are rejected.
 
-Goal:
+## Phase 2: Chain-of-Custody MVP
 
-Prove the core trust loop.
+Status: complete
 
-Deliverables:
+- Persistent edge signing identity
+- First-run demo key pairing
+- Strict first-record, sequence, and previous-hash rules
+- Full stored-ledger verification endpoint
+- Gap, metadata, hash, link, and signature checks
+- First-broken-sequence reporting
 
-- edge prototype emits signed evidence records,
-- gateway verifies payload hash and signature,
-- gateway stores valid records,
-- invalid records are rejected,
-- database contains enough data to verify later.
+Exit criterion: changing a stored canonical payload makes verification fail at the affected sequence.
 
-Success criteria:
+## Phase 3: Computer-Vision MVP
 
-- a valid edge record inserts into `evidence_ledger`,
-- a changed payload hash is rejected,
-- a changed signature is rejected.
+Status: complete
 
-Status:
+- Webcam and video-file capture
+- OpenCV Haar face detection
+- Edge blur redaction
+- Redacted-frame hashing
+- Linked evidence emission at configurable frame intervals
+- Redacted MP4 and JSONL evidence manifest
+- No-camera synthetic fallback
 
-Complete for the first ingestion path. The next phase is stored-chain verification.
+Exit criterion: a real video source produces visibly redacted output and a valid evidence chain.
 
-## Phase 2: MVP Chain Verification
+## Phase 4: Hackathon Experience
 
-Goal:
+Status: complete
 
-Detect tampering after records are stored.
+- Browser evidence integrity console
+- Stream and ledger record views
+- Chain verification control and result display
+- Controlled tamper simulation for `demo-*` streams
+- Setup, demo, architecture, API, threat, and submission documentation
 
-Deliverables:
+Exit criterion: a judge can understand the value and witness valid-to-broken verification in under three minutes.
 
-- multiple sequential records,
-- `previousPayloadHash` continuity,
-- verification endpoint,
-- gap detection,
-- first-broken-record reporting.
+This is the hackathon submission boundary.
 
-Success criteria:
+## Phase 5: Pilot Hardening
 
-- modifying one ledger row causes verification to fail,
-- the response identifies the broken `sequenceNumber`.
+Status: planned
 
-## Phase 3: Computer Vision MVP
+- Stronger face detector such as a reviewed ONNX model
+- Detection-quality evaluation across lighting, pose, and occlusion
+- Explicit device enrollment workflow
+- Key rotation, historical key registry, and revocation
+- Authentication and role-based access
+- Object storage for encrypted redacted media
+- Database migrations and integration-test environment
+- Containerized gateway and reproducible deployment
+- Metrics, tracing, health checks, and structured audit events
 
-Goal:
+Exit criterion: multiple registered devices can operate for a sustained trial with measurable redaction and verification reliability.
 
-Replace the synthetic demo frame with real video processing.
+## Phase 6: Product Track
 
-Deliverables:
+Status: future
 
-- sample video ingestion,
-- face detection,
-- face redaction,
-- redacted frame hashing,
-- payload emission per frame batch.
+- TPM or HSM-backed edge keys
+- Secure boot and remote device attestation
+- Multi-tenant authorization
+- Retention and evidence export policies
+- External timestamp or Merkle anchoring
+- Disaster recovery and archival verification
+- Security review, privacy assessment, and relevant legal/compliance validation
 
-Success criteria:
+Exit criterion: claims are backed by production controls, independent review, and operational evidence.
 
-- the system processes a sample video,
-- redacted output is visibly privacy-preserving,
-- generated evidence records still verify.
+## Submission Decision
 
-## Phase 4: Dashboard MVP
-
-Goal:
-
-Make the MVP understandable to reviewers and teammates.
-
-Deliverables:
-
-- ledger list,
-- latest device status,
-- verify-chain button,
-- broken-record display.
-
-Success criteria:
-
-- a user can run the demo without reading database rows manually.
-
-## Phase 5: Complete Project Track
-
-Goal:
-
-Move from portfolio MVP toward a realistic product architecture.
-
-Deliverables:
-
-- multi-camera support,
-- device registration,
-- public key registry,
-- key rotation and revocation,
-- replay protection,
-- evidence export,
-- audit trail,
-- deployment documentation,
-- security review checklist.
-
-This phase should start only after the MVP proves tamper detection end to end.
-
-## Skills Learned
-
-### Computer Vision
-
-- video frame capture,
-- face detection,
-- bounding box handling,
-- redaction quality tradeoffs,
-- frame hashing,
-- practical model deployment constraints.
-
-### Backend Engineering
-
-- REST API design,
-- input validation,
-- database schema design,
-- PostgreSQL persistence,
-- error handling,
-- service boundaries.
-
-### Security Engineering
-
-- canonical serialization,
-- SHA-256 hashing,
-- Ed25519 signatures,
-- signature verification,
-- replay and tamper threat modeling,
-- key custody limitations.
-
-### Distributed Systems
-
-- edge-to-server contracts,
-- sequence numbers,
-- idempotency,
-- append-oriented ledger design,
-- verification workflows.
-
-### Product Thinking
-
-- USP-first scoping,
-- MVP definition,
-- demo design,
-- tradeoffs between proof, polish, and production readiness.
+The project can now be submitted as a prototype because the differentiating claim is implemented end to end, is visually demonstrable, has a fallback demo path, and clearly separates proven behavior from future production work.

@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS edge_device (
     device_id VARCHAR(128) NOT NULL UNIQUE,
     display_name VARCHAR(255) NOT NULL,
     public_key_id VARCHAR(128),
+    public_key_hex CHAR(64),
+    paired_at TIMESTAMPTZ,
     status VARCHAR(32) NOT NULL DEFAULT 'active',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),

@@ -3,6 +3,7 @@ package dev.aegiseye.gateway.ingest;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -23,6 +24,7 @@ public class EvidenceIngestionService {
         this.verifier = verifier;
     }
 
+    @Transactional
     public EvidenceIngestionResponse ingest(EvidenceIngestionRequest request) {
         validateRequestShape(request);
 
@@ -53,9 +55,8 @@ public class EvidenceIngestionService {
         long sequenceNumber = requiredLong(payload, "sequenceNumber");
         Instant capturedAt = parseInstant(requiredText(payload, "capturedAt"));
 
-        if (!activeDeviceRegistered(deviceId, request.publicKeyId())) {
-            throw new InvalidEvidenceException("device is not registered as active for this publicKeyId");
-        }
+        pairOrVerifyDeviceKey(deviceId, request.publicKeyId(), request.publicKeyHex());
+        verifyChainPosition(deviceId, streamId, sequenceNumber, request.previousPayloadHash());
 
         UUID ledgerId = UUID.randomUUID();
         jdbcTemplate.update(
@@ -172,19 +173,91 @@ public class EvidenceIngestionService {
         return left.equals(right);
     }
 
-    private boolean activeDeviceRegistered(String deviceId, String publicKeyId) {
-        Integer count = jdbcTemplate.queryForObject(
+    private void pairOrVerifyDeviceKey(String deviceId, String publicKeyId, String publicKeyHex) {
+        if (!publicKeyHex.matches("^[a-f0-9]{64}$")) {
+            throw new InvalidEvidenceException("publicKeyHex must be a lowercase 32-byte Ed25519 key");
+        }
+
+        var rows = jdbcTemplate.query(
                 """
-                SELECT count(*)
+                SELECT public_key_hex
                 FROM edge_device
                 WHERE device_id = ?
                   AND public_key_id = ?
                   AND status = 'active'
                 """,
-                Integer.class,
+                (resultSet, rowNumber) -> resultSet.getString("public_key_hex"),
                 deviceId,
                 publicKeyId
         );
-        return count != null && count > 0;
+        if (rows.isEmpty()) {
+            throw new InvalidEvidenceException("device is not registered as active for this publicKeyId");
+        }
+
+        String registeredKey = rows.getFirst();
+        if (registeredKey == null || registeredKey.isBlank()) {
+            jdbcTemplate.update(
+                    """
+                    UPDATE edge_device
+                    SET public_key_hex = ?, paired_at = now(), updated_at = now()
+                    WHERE device_id = ? AND public_key_id = ? AND public_key_hex IS NULL
+                    """,
+                    publicKeyHex,
+                    deviceId,
+                    publicKeyId
+            );
+            registeredKey = jdbcTemplate.queryForObject(
+                    "SELECT public_key_hex FROM edge_device WHERE device_id = ? AND public_key_id = ?",
+                    String.class,
+                    deviceId,
+                    publicKeyId
+            );
+        }
+
+        if (registeredKey == null || !registeredKey.trim().equals(publicKeyHex)) {
+            throw new InvalidEvidenceException("public key does not match the key paired to this device");
+        }
+    }
+
+    private void verifyChainPosition(
+            String deviceId,
+            String streamId,
+            long sequenceNumber,
+            String previousPayloadHash
+    ) {
+        var latest = jdbcTemplate.query(
+                """
+                SELECT sequence_number, payload_hash
+                FROM evidence_ledger
+                WHERE device_id = ? AND stream_id = ?
+                ORDER BY sequence_number DESC
+                LIMIT 1
+                FOR UPDATE
+                """,
+                (resultSet, rowNumber) -> new ChainHead(
+                        resultSet.getLong("sequence_number"),
+                        resultSet.getString("payload_hash")
+                ),
+                deviceId,
+                streamId
+        );
+
+        if (latest.isEmpty()) {
+            if (sequenceNumber != 1 || previousPayloadHash != null) {
+                throw new InvalidEvidenceException("a new stream must start at sequenceNumber 1 with no previousPayloadHash");
+            }
+            return;
+        }
+
+        ChainHead head = latest.getFirst();
+        if (sequenceNumber != head.sequenceNumber() + 1) {
+            throw new InvalidEvidenceException("sequenceNumber must continue from the latest accepted record");
+        }
+        if (!head.payloadHash().equals(previousPayloadHash)) {
+            throw new InvalidEvidenceException("previousPayloadHash must match the latest accepted record");
+        }
+    }
+
+    private record ChainHead(long sequenceNumber, String payloadHash) {
     }
 }

@@ -1,46 +1,62 @@
 # aegis-eye-bridge
 
-Python edge prototype for AegisEye Core.
+Python/OpenCV edge producer for AegisEye Core.
 
-The bridge is responsible for:
+It redacts faces, hashes redacted frames, builds linked canonical payloads, signs them with a persistent Ed25519 identity, and submits signed evidence to the gateway.
 
-- reading video frames,
-- detecting sensitive visual regions,
-- redacting those regions,
-- creating canonical evidence payloads,
-- hashing payloads,
-- signing hashes,
-- sending signed evidence records to the backend.
-
-## Current Prototype
-
-The current prototype does not require a real camera. It creates a synthetic frame, simulates one face detection, redacts the region, hashes the redacted frame, builds an evidence payload, signs the payload hash with a demo Ed25519 key, verifies the signature, and prints the result.
-
-Run it from this folder:
+## Real Webcam or Video
 
 ```powershell
-.\.venv\Scripts\python.exe -m src.prototype
+$stream = "demo-webcam-" + (Get-Date -Format "yyyyMMdd-HHmmss")
+.\.venv\Scripts\python.exe -m src.video_pipeline --source 0 --stream-id $stream --display
 ```
 
-Or from the repo root:
+Use a video path instead of `0` for file input. The default run processes 180 frames and emits evidence every 30 frames.
+
+Outputs under `artifacts/`:
+
+- `redacted-output.mp4`: processed video containing blurred detections
+- `evidence-records.jsonl`: signed evidence envelopes
+
+Original frames are processed in memory and are not written by the bridge.
+
+## Reliable Synthetic Demo
 
 ```powershell
-cd .\edge\aegis-eye-bridge
-.\.venv\Scripts\python.exe -m src.prototype
+.\.venv\Scripts\python.exe -m src.demo_seed
 ```
 
-To post the generated record to a running gateway:
+This creates a unique five-record `demo-synthetic-*` stream, submits it, and saves a redacted preview and JSONL manifest. It exercises the same signing, ingestion, ledger, and verification path as the real video producer.
+
+## Single-Record Development Probe
 
 ```powershell
 $env:AEGIS_INGEST_URL='http://localhost:8080/api/evidence'
-$env:AEGIS_STREAM_ID='camera-demo-local'
-$env:AEGIS_SEQUENCE_NUMBER='1'
+$env:AEGIS_STREAM_ID='demo-probe-001'
 .\.venv\Scripts\python.exe -m src.prototype
-Remove-Item Env:\AEGIS_INGEST_URL
-Remove-Item Env:\AEGIS_STREAM_ID
-Remove-Item Env:\AEGIS_SEQUENCE_NUMBER
 ```
 
-## Important
+## Device Identity
 
-The demo key is generated at runtime. It is not production key custody. Production needs hardware-backed key storage, rotation, and revocation.
+The edge key is created at `keys/demo-device-ed25519.pem` on first use and reused. The key directory is ignored by git. The backend pairs the corresponding public key to `edge-demo-001` on the first accepted record.
+
+This is local prototype custody. Production requires authenticated enrollment, TPM/HSM-backed keys, rotation, and revocation.
+
+## Useful Video Options
+
+```text
+--source PATH_OR_CAMERA
+--output PATH
+--stream-id ID
+--ingest-url URL
+--evidence-every N
+--max-frames N
+--display
+--no-submit
+```
+
+## Tests
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests
+```

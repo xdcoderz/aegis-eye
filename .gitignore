@@ -9,3 +9,5 @@ target/
 dist/
 build/
 *.log
+artifacts/
+**/keys/*.pem

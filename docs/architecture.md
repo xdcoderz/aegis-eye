@@ -1,113 +1,121 @@
 # AegisEye Core Architecture
 
-## V1 Architecture
+## System Claim
 
-```text
-sample video or frame
-  -> edge/aegis-eye-bridge
-  -> face detection and redaction
-  -> canonical evidence payload
-  -> SHA-256 payload hash
-  -> Ed25519 signature
-  -> backend ingestion API
-  -> PostgreSQL evidence_ledger
-  -> chain verification
-  -> dashboard result
+AegisEye proves that visual evidence can be privacy-redacted near capture and later checked for origin, modification, reordering, or deletion.
+
+```mermaid
+flowchart LR
+    A["Webcam or video"] --> B["OpenCV edge redaction"]
+    B --> C["Redacted frame hash"]
+    C --> D["Canonical evidence payload"]
+    D --> E["SHA-256 payload hash"]
+    E --> F["Ed25519 device signature"]
+    F --> G["Spring Boot ingestion"]
+    G --> H["PostgreSQL ledger"]
+    H --> I["Chain verifier"]
+    I --> J["Integrity console"]
 ```
 
-## Product Structure
+## Components
 
-AegisEye should be built in layers, not all at once.
+### Edge Bridge
 
-### USP Proof
+Location: `edge/aegis-eye-bridge`
 
-The USP is the smallest proof that makes the project interesting:
+Responsibilities:
 
-```text
-redacted evidence payload -> hash -> signature -> ledger -> tamper detection
+- Open a webcam or video file.
+- Detect faces with OpenCV Haar cascade.
+- Blur detected regions before output or transmission metadata is created.
+- Hash the encoded redacted frame.
+- Build a deterministic JSON evidence payload.
+- Link each payload to the prior payload hash.
+- Sign the payload hash with a persistent Ed25519 key.
+- Submit records and retain a local JSONL manifest.
+
+The private key stays on the edge filesystem. The prototype never sends it to the backend.
+
+### Gateway and Ledger
+
+Location: `backend/aegis-gateway-hub`
+
+Responsibilities:
+
+- Pair the first accepted demo public key to the registered device.
+- Recompute and compare the canonical payload hash.
+- Verify the Ed25519 signature.
+- Enforce genesis, sequence, and previous-hash continuity.
+- Persist accepted records in PostgreSQL.
+- Re-read stored rows and independently verify the complete chain.
+- Report the first broken sequence and human-readable reason.
+
+The gateway and ledger are one deployable service for the hackathon prototype. They can be separated after the contracts and operational requirements stabilize.
+
+### Evidence Console
+
+Location: `backend/aegis-gateway-hub/src/main/resources/static`
+
+Responsibilities:
+
+- Show known streams and evidence counts.
+- List sequence, hashes, detections, model, and verification state.
+- Trigger full chain verification.
+- Run a controlled post-storage mutation only on `demo-*` streams.
+- Show valid, pending, or broken status and the affected sequence.
+
+### PostgreSQL
+
+Key tables:
+
+- `edge_device`: registered identity, status, key ID, paired public key, pairing time.
+- `evidence_ledger`: payload, hashes, signature, sequence, timestamps, and verification result.
+
+Unique constraints prevent duplicate stream sequences and duplicate payload hashes.
+
+## Evidence Sequence
+
+```mermaid
+sequenceDiagram
+    participant E as Edge bridge
+    participant G as Gateway
+    participant D as Device registry
+    participant L as Evidence ledger
+    participant U as Reviewer console
+
+    E->>E: Detect and redact face
+    E->>E: Hash frame and canonical payload
+    E->>E: Sign payload hash
+    E->>G: POST signed evidence
+    G->>D: Pair or verify public key
+    G->>G: Verify hash, signature, and chain position
+    G->>L: Append accepted record
+    U->>G: Verify stored stream
+    G->>L: Read records in sequence order
+    G->>G: Recompute hashes, signatures, and links
+    G-->>U: Valid or first broken sequence
 ```
 
-This proves the project is more than a camera dashboard. It proves a trust property.
+## Canonicalization Rule
 
-### MVP
+Both Python and Java recursively sort object keys, preserve array order, emit compact UTF-8 JSON, and hash the resulting bytes with SHA-256. Cross-language canonicalization is a critical contract and should later be replaced or formally aligned with a standard such as RFC 8785 before production claims.
 
-The MVP turns the USP into something a reviewer can run:
+## Security Boundaries
 
-- edge prototype emits signed records,
-- gateway accepts and verifies records,
-- database stores the ledger,
-- verification endpoint finds broken records,
-- dashboard shows the result.
+```text
+untrusted scene -> trusted edge process -> untrusted network -> validating gateway
+-> mutable database -> independent verifier -> reviewer
+```
 
-### Complete Project
+The database is deliberately treated as mutable. Verification does not trust its stored `verification_status`; it recomputes the trust result from payload content, chain links, signatures, and the paired public key.
 
-The complete project expands the MVP into a realistic product:
+## Hackathon Tradeoffs
 
-- multi-camera support,
-- registered device keys,
-- key rotation and revocation,
-- real video redaction pipeline,
-- dashboard workflows,
-- audit/export features,
-- external review readiness.
+- Haar detection is lightweight and explainable but less accurate than modern detectors.
+- The first demo key uses trust-on-first-use pairing rather than an authenticated enrollment ceremony.
+- Local filesystem key custody is not hardware-backed.
+- PostgreSQL is append-oriented by application behavior, not physically immutable.
+- The controlled tamper API is enabled for local demo streams and must be disabled outside demo mode.
+- Redacted video is local to the edge; the ledger stores integrity metadata, not media blobs.
 
-## Service Boundaries
-
-### aegis-eye-bridge
-
-Runs near the camera or sample video source.
-
-Responsibilities:
-
-- Capture frames.
-- Detect sensitive regions.
-- Redact faces.
-- Build canonical evidence payloads.
-- Compute payload hashes.
-- Sign hashes with an edge private key.
-- Send signed records to ingestion.
-
-### aegis-gateway-hub
-
-Future backend ingestion service.
-
-Responsibilities:
-
-- Authenticate edge devices.
-- Validate payload shape.
-- Verify signatures.
-- Reject duplicate or replayed sequence numbers.
-- Forward accepted records to the ledger.
-
-### aegis-analytics-ledger
-
-Future ledger service.
-
-Responsibilities:
-
-- Persist canonical payloads, hashes, signatures, and chain links.
-- Verify continuity for each device and stream.
-- Identify the first broken ledger record.
-
-### aegis-portal
-
-Future dashboard.
-
-Responsibilities:
-
-- Show stream health.
-- Show recent ledger entries.
-- Trigger chain verification.
-- Highlight tampered or broken records.
-
-## V1 Non-Goals
-
-- Multi-camera support
-- Kubernetes
-- Cloud deployment
-- Hardware key custody
-- User management
-- Live production surveillance
-- Legal-grade evidence export
-
-These are important later, but they are not part of the first proof loop.
+These choices make the core idea buildable and demonstrable without overstating production readiness.

@@ -1,84 +1,113 @@
-# AegisEye USP and MVP Demo Plan
+# AegisEye Hackathon Demo Runbook
 
-## End Goal
+## Demo Goal
 
-Build a system that can take privacy-redacted visual evidence from an edge device, prove it was signed by that device, store it in a ledger, and detect later tampering.
+In under three minutes, prove that AegisEye redacts sensitive visual data at the edge, binds evidence to a device, and detects a database mutation at the exact affected sequence.
 
-## USP Objective
+## Pre-Demo Check
 
-Show the unique selling point first:
+From the repository root:
 
-```text
-redacted evidence -> canonical payload -> payload hash -> signature -> ledger -> tamper detection
+```powershell
+docker compose -f .\infra\docker-compose.yml up -d
+docker compose -f .\infra\docker-compose.yml ps
 ```
 
-This must work before adding product polish.
+Run tests:
 
-## MVP Objective
+```powershell
+cd .\edge\aegis-eye-bridge
+.\.venv\Scripts\python.exe -m unittest discover -s tests
 
-Turn the USP into a usable local demo:
+cd ..\..\backend\aegis-gateway-hub
+mvn test
+```
 
-- one edge producer,
-- one ingestion API,
-- one PostgreSQL ledger,
-- one chain verification flow,
-- one minimal dashboard.
+Start the backend:
 
-## Demo Story
+```powershell
+mvn spring-boot:run
+```
 
-1. Start PostgreSQL.
-2. Run the edge bridge prototype.
-3. Produce a signed evidence payload.
-4. Store the record in the ledger.
-5. Verify the chain.
-6. Manually tamper with one row.
-7. Verify again.
-8. Show the broken record.
+Open [http://localhost:8080](http://localhost:8080).
 
-## Phase 1: Foundation
+## Reliable Three-Minute Demo
 
-Status: complete
+### 1. Frame the problem
 
-- Define evidence payload schema.
-- Define ledger database table.
-- Create local PostgreSQL Compose setup.
-- Create edge prototype for canonical payload, hash, and signature.
+Suggested line:
 
-## Phase 2: Ingestion MVP
+> Computer vision can redact faces, but a reviewer still needs to know whether the evidence was changed later. AegisEye joins edge privacy with cryptographic chain of custody.
 
-Status: complete
+### 2. Create evidence
 
-- Create `POST /api/evidence`.
-- Recompute canonical payload hash.
-- Verify Ed25519 signature.
-- Persist accepted records to PostgreSQL.
-- Reject tampered or invalid records.
+In the edge directory:
 
-## Phase 3: Edge Computer Vision
+```powershell
+.\.venv\Scripts\python.exe -m src.demo_seed
+```
 
-- Read a sample video.
-- Detect faces with a simple OpenCV detector or ONNX model.
-- Redact detected faces.
-- Hash redacted frame output.
-- Emit one payload per frame batch.
+This creates five linked records with a persistent device signature and submits them to the gateway.
 
-## Phase 4: Chain Verification
+### 3. Verify the intact chain
 
-Status: next
+Refresh the console, select the newest `demo-synthetic-*` stream, and select `Verify chain`.
 
-- Create `POST /api/ledger/verify`.
-- Walk records by `(device_id, stream_id, sequence_number)`.
-- Recompute hashes.
-- Check signatures.
-- Check previous-hash continuity.
-- Return first broken record.
+Expected result:
 
-## Phase 5: Dashboard
+```text
+VALID
+Every stored payload, signature, sequence, and chain link is valid.
+```
 
-- Show latest records.
-- Add a verify button.
-- Show valid or broken-chain result.
+### 4. Simulate post-storage tampering
 
-## Demo Acceptance Criteria
+Choose a middle sequence such as `3`, select `Tamper record`, then select `Verify chain` again.
 
-The demo is successful only if tampering with a stored record causes verification to fail and points to the broken sequence number.
+Expected result:
+
+```text
+BROKEN at sequence 3
+Canonical payload hash mismatch.
+```
+
+### 5. Close with value
+
+Suggested line:
+
+> The original private key never entered the backend. AegisEye independently found the first modified record by re-hashing stored evidence and checking its device signature and chain link.
+
+## Real CV Demonstration
+
+Use this when the webcam is reliable:
+
+```powershell
+$stream = "demo-webcam-" + (Get-Date -Format "yyyyMMdd-HHmmss")
+.\.venv\Scripts\python.exe -m src.video_pipeline --source 0 --stream-id $stream --display
+```
+
+Stand facing the camera with reasonable frontal lighting. The preview and output MP4 show the redaction. Evidence is submitted every 30 frames by default.
+
+For a prerecorded file:
+
+```powershell
+$stream = "demo-video-" + (Get-Date -Format "yyyyMMdd-HHmmss")
+.\.venv\Scripts\python.exe -m src.video_pipeline --source "D:\path\sample.mp4" --stream-id $stream
+```
+
+## Demo Recovery
+
+- Camera unavailable: use `src.demo_seed`.
+- Port 8080 occupied: set `SERVER_PORT` and pass the matching `--ingest-url`; note that the console URL changes too.
+- Duplicate stream sequence: use a new timestamped stream ID.
+- Device key mismatch after replacing `keys/demo-device-ed25519.pem`: reset or re-enroll the local demo device before presenting. Do not delete the key between normal runs.
+- No streams in the console: confirm the gateway accepted records and refresh.
+
+## Acceptance Criteria
+
+- At least three sequential records are accepted.
+- The intact stream verifies as valid.
+- A controlled mutation changes only the stored canonical payload.
+- Re-verification reports `broken` and the affected sequence.
+- The real CV path produces a redacted video and linked manifest.
+- All automated tests pass.

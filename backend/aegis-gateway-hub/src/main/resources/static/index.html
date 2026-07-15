@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="AegisEye privacy-preserving evidence integrity console">
+    <title>AegisEye | Evidence Integrity</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="topbar">
+    <div class="brand">
+        <span class="brand-mark" aria-hidden="true">AE</span>
+        <div>
+            <strong>AegisEye Core</strong>
+            <span>Evidence integrity console</span>
+        </div>
+    </div>
+    <div id="service-health" class="health-badge pending">Checking gateway</div>
+</header>
+
+<main>
+    <section class="page-heading">
+        <div>
+            <p class="eyebrow">PRIVACY-PRESERVING COMPUTER VISION</p>
+            <h1>Chain of custody, visible.</h1>
+            <p>Redacted edge evidence with cryptographic origin and post-storage tamper detection.</p>
+        </div>
+        <div class="pipeline" aria-label="Evidence pipeline">
+            <span>Redact</span><i></i><span>Hash</span><i></i><span>Sign</span><i></i><span>Verify</span>
+        </div>
+    </section>
+
+    <section class="metrics" aria-label="System summary">
+        <div><span>Streams</span><strong id="metric-streams">0</strong></div>
+        <div><span>Evidence records</span><strong id="metric-records">0</strong></div>
+        <div><span>Integrity</span><strong id="metric-integrity">No data</strong></div>
+        <div><span>Latest sequence</span><strong id="metric-sequence">-</strong></div>
+    </section>
+
+    <section class="workspace">
+        <div class="workspace-header">
+            <div>
+                <p class="section-label">LEDGER EXPLORER</p>
+                <h2>Evidence stream</h2>
+            </div>
+            <div class="controls">
+                <label>
+                    <span>Stream</span>
+                    <select id="stream-select" aria-label="Evidence stream"></select>
+                </label>
+                <button id="refresh-button" class="button secondary" type="button">Refresh</button>
+                <button id="verify-button" class="button primary" type="button">Verify chain</button>
+            </div>
+        </div>
+
+        <div id="verification-result" class="result-panel neutral" role="status" aria-live="polite">
+            <strong>Awaiting verification</strong>
+            <span>Select a stream to inspect its evidence ledger.</span>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Sequence</th>
+                    <th>Captured</th>
+                    <th>Payload hash</th>
+                    <th>Previous link</th>
+                    <th>Faces</th>
+                    <th>Model</th>
+                    <th>Status</th>
+                </tr>
+                </thead>
+                <tbody id="records-body"></tbody>
+            </table>
+            <div id="empty-state" class="empty-state">No evidence records are available.</div>
+        </div>
+    </section>
+
+    <section class="demo-lab">
+        <div>
+            <p class="section-label">CONTROLLED ADVERSARIAL TEST</p>
+            <h2>Tamper simulation</h2>
+            <p id="tamper-context">Intentional mutation is limited to demo-prefixed streams.</p>
+        </div>
+        <label>
+            <span>Sequence</span>
+            <input id="tamper-sequence" type="number" min="1" value="1">
+        </label>
+        <button id="tamper-button" class="button danger" type="button" disabled>Tamper record</button>
+    </section>
+</main>
+
+<footer>
+    <span>AegisEye Core prototype</span>
+    <span>Edge privacy + cryptographic evidence integrity</span>
+</footer>
+
+<script src="/app.js" defer></script>
+</body>
+</html>

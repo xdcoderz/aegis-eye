@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-import json
 import os
-from datetime import UTC, datetime
-from urllib import request
-from uuid import uuid4
+from pathlib import Path
 
 import cv2
 import numpy as np
 
-from .canonical import canonical_json_bytes, payload_hash, sha256_hex
-from .crypto import generate_demo_private_key, public_key_hex, sign_hash, verify_hash_signature
+from .canonical import sha256_hex
+from .crypto import load_or_create_private_key
+from .evidence import build_payload, create_signed_record, post_record
 
 
 def synthetic_frame() -> np.ndarray:
@@ -38,48 +36,6 @@ def frame_hash(frame: np.ndarray) -> str:
     return sha256_hex(encoded.tobytes())
 
 
-def build_payload(
-    redacted_frame_hash: str,
-    device_id: str,
-    stream_id: str,
-    sequence_number: int,
-    previous_payload_hash: str | None,
-) -> dict:
-    return {
-        "schemaVersion": "aegis.evidence.v1",
-        "deviceId": device_id,
-        "streamId": stream_id,
-        "sequenceNumber": sequence_number,
-        "capturedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-        "redactionModel": {
-            "name": "synthetic-face-redactor",
-            "version": "0.1.0",
-            "mode": "synthetic-demo",
-        },
-        "frameBatch": {
-            "batchId": str(uuid4()),
-            "startFrame": 0,
-            "endFrame": 0,
-            "frameCount": 1,
-            "redactedFrameHash": redacted_frame_hash,
-        },
-        "previousPayloadHash": previous_payload_hash,
-        "detections": [
-            {
-                "type": "face",
-                "confidence": 0.99,
-                "redaction": "blur",
-                "box": {
-                    "x": 265,
-                    "y": 100,
-                    "width": 110,
-                    "height": 110,
-                },
-            }
-        ],
-    }
-
-
 def main() -> None:
     detection = {"x": 265, "y": 100, "width": 110, "height": 110}
     frame = synthetic_frame()
@@ -88,44 +44,39 @@ def main() -> None:
 
     previous_payload_hash = os.getenv("AEGIS_PREVIOUS_PAYLOAD_HASH")
     payload = build_payload(
-        redacted_hash,
+        redacted_frame_hash=redacted_hash,
+        detections=[
+            {
+                "type": "face",
+                "confidence": 0.99,
+                "redaction": "blur",
+                "box": detection,
+            }
+        ],
+        model_name="synthetic-face-redactor",
+        model_version="0.2.0",
+        model_mode="synthetic-demo",
         device_id=os.getenv("AEGIS_DEVICE_ID", "edge-demo-001"),
-        stream_id=os.getenv("AEGIS_STREAM_ID", "camera-demo-001"),
+        stream_id=os.getenv("AEGIS_STREAM_ID", "demo-synthetic"),
         sequence_number=int(os.getenv("AEGIS_SEQUENCE_NUMBER", "1")),
         previous_payload_hash=previous_payload_hash if previous_payload_hash else None,
+        start_frame=0,
+        end_frame=0,
+        frame_count=1,
     )
-    hash_hex = payload_hash(payload)
+    key_path = Path(os.getenv("AEGIS_KEY_PATH", "keys/demo-device-ed25519.pem"))
+    private_key = load_or_create_private_key(key_path)
+    record = create_signed_record(payload, private_key)
 
-    private_key = generate_demo_private_key()
-    public_key = private_key.public_key()
-    signature = sign_hash(private_key, hash_hex)
-    signature_valid = verify_hash_signature(public_key, hash_hex, signature)
-
-    record = {
-        "payloadHash": hash_hex,
-        "previousPayloadHash": payload["previousPayloadHash"],
-        "signature": signature,
-        "signatureAlgorithm": "ed25519",
-        "publicKeyId": "demo-ed25519-key",
-        "publicKeyHex": public_key_hex(public_key),
-        "signatureValid": signature_valid,
-        "canonicalPayload": json.loads(canonical_json_bytes(payload)),
-    }
-
-    print(json.dumps(record, indent=2, sort_keys=True))
+    artifact_dir = Path(os.getenv("AEGIS_ARTIFACT_DIR", "artifacts"))
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(str(artifact_dir / "synthetic-redacted.jpg"), redacted)
+    print(f"Created signed evidence {record['payloadHash']} from a redacted synthetic frame")
 
     ingest_url = os.getenv("AEGIS_INGEST_URL")
     if ingest_url:
-        body = json.dumps(record, sort_keys=True).encode("utf-8")
-        http_request = request.Request(
-            ingest_url,
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with request.urlopen(http_request, timeout=10) as response:
-            response_body = response.read().decode("utf-8")
-        print(response_body)
+        response = post_record(ingest_url, record)
+        print(f"Gateway accepted ledger record {response['ledgerId']}")
 
 
 if __name__ == "__main__":

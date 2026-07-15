@@ -1,151 +1,122 @@
 # AegisEye Core
 
-AegisEye Core is a privacy-preserving, tamper-evident video evidence pipeline.
+AegisEye Core is a hackathon-ready prototype for privacy-preserving, tamper-evident video evidence.
 
-The v1 goal is deliberately narrow:
+It proves one focused claim end to end:
 
 ```text
-sample video/frame -> redact -> canonical evidence payload -> hash -> sign -> store -> verify -> tamper -> detect
+camera/video -> face redaction at the edge -> canonical payload -> SHA-256 hash
+-> Ed25519 signature -> chained PostgreSQL ledger -> verification -> tamper localization
 ```
 
-This repository is a monorepo for the edge computer-vision bridge, backend ingestion/ledger services, frontend portal, shared contracts, and local infrastructure.
+## Prototype Status
+
+The hackathon MVP is implemented.
+
+- Real webcam or video-file processing with OpenCV face detection and blur redaction
+- Persistent Ed25519 edge identity with first-run public-key pairing
+- Canonical evidence payloads and SHA-256 frame/payload hashes
+- Strict sequence and previous-hash checks during ingestion
+- PostgreSQL evidence ledger
+- Full stored-chain verification of metadata, hashes, signatures, order, and links
+- Intentional tamper simulation restricted to `demo-*` streams
+- Browser-based evidence integrity console served by the backend
+- Synthetic fallback runner for a reliable no-camera demo
+
+The prototype is suitable for a hackathon submission. It is not yet a production surveillance system or a claim of legal admissibility.
+
+## Why It Matters
+
+Most computer-vision demos stop after detection. AegisEye connects computer vision to evidence trust:
+
+- Privacy: faces are redacted before evidence leaves the edge process.
+- Authenticity: each payload is signed by a paired device key.
+- Integrity: stored payloads are re-hashed and signatures are re-verified.
+- Continuity: every record points to the previous signed payload hash.
+- Explainability: a broken chain reports the first affected sequence number and reason.
 
 ## Repository Layout
 
 ```text
-backend/
-  aegis-gateway-hub/        # future ingestion and signature verification API
-  aegis-analytics-ledger/   # future ledger persistence and verification service
-contracts/
-  evidence-payload.schema.json
-docs/
-  architecture.md
-  threat-model.md
-  v1-demo-plan.md
-edge/
-  aegis-eye-bridge/         # Python edge prototype
-frontend/
-  aegis-portal/             # future React dashboard
-infra/
-  docker-compose.yml
-  postgres/init.sql
+backend/aegis-gateway-hub/   Spring Boot API, ledger verifier, and web console
+contracts/                   Evidence payload JSON Schema
+docs/                        Architecture, phases, demo, threat model, submission notes
+edge/aegis-eye-bridge/       OpenCV redaction and signed evidence producers
+infra/                       PostgreSQL Docker Compose setup
 ```
 
-## Current Phase
-
-The project is in the USP/MVP foundation phase.
-
-Completed in this phase:
-
-- Evidence payload JSON Schema
-- PostgreSQL ledger schema
-- Local Docker Compose PostgreSQL setup
-- Edge prototype that creates, hashes, and signs one canonical payload
-- Backend ingestion API scaffold for accepting signed evidence records
-- Architecture, threat model, and v1 demo plan docs
-
-## End Goal
-
-The end goal is to build a privacy-preserving, tamper-evident video evidence system:
-
-- sensitive visual data is redacted at the edge,
-- evidence payloads are cryptographically hashed and signed,
-- records are stored in a verifiable ledger,
-- tampering can be detected and localized,
-- operators can verify evidence integrity from a dashboard.
-
-For the portfolio version, the target is not a full enterprise surveillance product. The target is a convincing proof that computer vision, cryptography, and backend systems can work together to protect evidence integrity.
-
-## Build Strategy
-
-The project is structured in three stages:
-
-1. USP proof: prove the unique selling point, which is redacted signed evidence plus tamper detection.
-2. MVP: make the proof usable end to end with an API, database, verification flow, and basic dashboard.
-3. Complete project: add multi-camera support, stronger key custody, production security, exports, and operational polish.
-
-See [docs/project-phases.md](docs/project-phases.md) for the full phase plan.
-
-## Local Requirements
+## Requirements
 
 - Docker Desktop
-- Python 3.11+ for the edge bridge
-- Java 21 and Maven for the backend service
-- PowerShell
+- Python 3.11+
+- Java 21 and Maven
+- A webcam or sample video for the real CV path
 
-The local virtual environment currently lives in `edge/aegis-eye-bridge/.venv` and is ignored by git.
+## Quick Start
 
-## Start PostgreSQL
-
-From the repository root:
+Start PostgreSQL from the repository root:
 
 ```powershell
 docker compose -f .\infra\docker-compose.yml up -d
 ```
 
-PostgreSQL will listen on `localhost:55432`.
-
-Default local credentials:
-
-```text
-database: aegis_eye
-user: aegis_user
-password: aegis_dev_password
-```
-
-These are local-only development values. Production secrets must not be stored in source control.
-
-## Run The Edge Prototype
-
-From the repository root:
+Start the gateway from a second terminal:
 
 ```powershell
-cd .\edge\aegis-eye-bridge
-.\.venv\Scripts\python.exe -m src.prototype
-```
-
-The prototype generates a synthetic frame, simulates one redaction detection, builds a canonical evidence payload, hashes it, signs it with a demo key, verifies the signature, and prints the resulting record.
-
-To post the generated record to the local gateway:
-
-```powershell
-$env:AEGIS_INGEST_URL='http://localhost:8080/api/evidence'
-.\.venv\Scripts\python.exe -m src.prototype
-Remove-Item Env:\AEGIS_INGEST_URL
-```
-
-## Run Edge Tests
-
-From `edge/aegis-eye-bridge`:
-
-```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests
-```
-
-## Run Gateway Hub
-
-From `backend/aegis-gateway-hub`:
-
-```powershell
+cd .\backend\aegis-gateway-hub
 mvn spring-boot:run
 ```
 
-The gateway listens on `localhost:8080`.
+Open the console at [http://localhost:8080](http://localhost:8080).
 
-Useful endpoints:
+Create a reliable five-record demo stream from a third terminal:
 
-```text
-GET  /health
-POST /api/evidence
+```powershell
+cd .\edge\aegis-eye-bridge
+.\.venv\Scripts\python.exe -m src.demo_seed
 ```
 
-## V1 Success Criterion
+Refresh the console, select the newest `demo-synthetic-*` stream, and run `Verify chain`. Then tamper with a sequence and verify again. The console identifies the first broken record.
 
-The first real milestone is complete when the system can:
+## Real Computer-Vision Run
 
-1. Generate evidence records from a video source.
-2. Persist `payload_hash`, `previous_payload_hash`, canonical payload, and signature.
-3. Verify the full chain.
-4. Detect and localize a tampered ledger record.
+Webcam input:
 
-Until that works, dashboard polish and multi-camera support are out of scope.
+```powershell
+cd .\edge\aegis-eye-bridge
+$stream = "demo-webcam-" + (Get-Date -Format "yyyyMMdd-HHmmss")
+.\.venv\Scripts\python.exe -m src.video_pipeline --source 0 --stream-id $stream --display
+```
+
+Video-file input:
+
+```powershell
+$stream = "demo-video-" + (Get-Date -Format "yyyyMMdd-HHmmss")
+.\.venv\Scripts\python.exe -m src.video_pipeline --source "D:\path\sample.mp4" --stream-id $stream
+```
+
+The edge process writes a redacted MP4 and JSONL evidence manifest under `edge/aegis-eye-bridge/artifacts/`. Original frames are processed in memory and are not written by AegisEye.
+
+## Tests
+
+```powershell
+cd .\edge\aegis-eye-bridge
+.\.venv\Scripts\python.exe -m unittest discover -s tests
+
+cd ..\..\backend\aegis-gateway-hub
+mvn test
+```
+
+## Documentation
+
+- [Hackathon submission brief](docs/hackathon-submission.md)
+- [Project phases and roadmap](docs/project-phases.md)
+- [Architecture](docs/architecture.md)
+- [Demo runbook](docs/v1-demo-plan.md)
+- [Threat model](docs/threat-model.md)
+- [Skills learned](docs/skills-learned.md)
+- [API reference](docs/api.md)
+
+## End Goal
+
+The long-term goal is an independently auditable evidence platform that redacts sensitive visual data near capture, binds evidence to registered device identities, detects modification or deletion, and supports controlled evidence review and export. The current prototype establishes the core technical trust loop on which that product can be built.

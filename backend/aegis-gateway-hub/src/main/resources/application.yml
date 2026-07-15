@@ -9,3 +9,10 @@ spring:
     username: ${DB_USER:aegis_user}
     password: ${DB_PASSWORD:aegis_dev_password}
     driver-class-name: org.postgresql.Driver
+  sql:
+    init:
+      mode: always
+
+aegis:
+  demo:
+    tamper-enabled: ${AEGIS_DEMO_TAMPER_ENABLED:true}
